@@ -1,7 +1,15 @@
 [package]
-name = "hello_world"
-version = "0.0.0"
-publish = false
+name = "praysely_rust_server"
+version = "0.1.0"
+edition = "2021"
+authors = ["Rafael Arias"]
 
 [dependencies]
-rocket = "0.4.10"
+rocket = {version = "0.5.0-rc.2", features = ["json"]}
+serde = "1.0.136"
+dotenv = "0.15.0"
+
+[dependencies.mongodb]
+version = "2.2.0"
+default-features = false
+features = ["sync"] 
