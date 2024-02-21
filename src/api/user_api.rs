@@ -1,109 +1,104 @@
-use crate::{models::user_model::Users, repository::mongodb_repo::MongoRepo};
-use mongodb::{bson::oid::ObjectId, results::InsertOneResult};
-use rocket::{http::Status, serde::json::Json, State};
+use crate::{models::user_model::User, repository::mongodb_repo::MongoRepo};
+use actix_web::{
+    delete, get, post, put,
+    web::{Data, Json, Path},
+    HttpResponse,
+};
+use mongodb::bson::oid::ObjectId;
 
-#[post("/user", data = "<new_user>")]
-pub fn create_user(
-    db: &State<MongoRepo>,
-    new_user: Json<Users>,
-) -> Result<Json<InsertOneResult>, Status> {
-    let data = Users {
+#[post("/user")]
+pub async fn create_user(db: Data<MongoRepo>, new_user: Json<User>) -> HttpResponse {
+    let data = User {
         id: None,
-        fullName: new_user.fullName.to_owned(),
-        username: new_user.username.to_owned(),
-        email: new_user.email.to_owned(), 
-        password: new_user.password.to_owned(),
+        name: new_user.name.to_owned(),
+        location: new_user.location.to_owned(),
+        title: new_user.title.to_owned(),
     };
 
-    let user_detail = db.create_user(data);
+    let user_detail = db.create_user(data).await;
 
     match user_detail {
-        Ok(user) => Ok(Json(user)),
-        Err(_) => Err(Status::InternalServerError),
+        Ok(user) => HttpResponse::Ok().json(user),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
 }
 
-#[get("/user/<path>")]
-pub fn get_user(db: &State<MongoRepo>, path: String) -> Result<Json<Users>, Status> {
-    let id = path;
+#[get("/user/{id}")]
+pub async fn get_user(db: Data<MongoRepo>, path: Path<String>) -> HttpResponse {
+    let id = path.into_inner();
     if id.is_empty() {
-        return Err(Status::BadRequest);
-    };
-    let user_detail = db.get_user(&id);
+        return HttpResponse::BadRequest().body("invalid ID");
+    }
+    let user_detail = db.get_user(&id).await;
 
     match user_detail {
-        Ok(user) => Ok(Json(user)),
-        Err(_) => Err(Status::InternalServerError),
+        Ok(user) => HttpResponse::Ok().json(user),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
 }
 
-#[put("/user/<path>", data = "<new_user>")]
-pub fn update_user(
-    db: &State<MongoRepo>,
-    path: String,
-    new_user: Json<Users>,
-) -> Result<Json<Users>, Status> {
-    let id = path;
+#[put("/user/{id}")]
+pub async fn update_user(
+    db: Data<MongoRepo>,
+    path: Path<String>,
+    new_user: Json<User>,
+) -> HttpResponse {
+    let id = path.into_inner();
     if id.is_empty() {
-        return Err(Status::BadRequest);
+        return HttpResponse::BadRequest().body("invalid ID");
     };
-    let data = Users {
+    let data = User {
         id: Some(ObjectId::parse_str(&id).unwrap()),
-        fullName: new_user.fullName.to_owned(), 
-        username: new_user.username.to_owned(),
-        email: new_user.email.to_owned(),
-        password: new_user.password.to_owned(),
+        name: new_user.name.to_owned(),
+        location: new_user.location.to_owned(),
+        title: new_user.title.to_owned(),
     };
-    let update_result = db.update_user(&id, data);
+
+    let update_result = db.update_user(&id, data).await;
 
     match update_result {
         Ok(update) => {
             if update.matched_count == 1 {
-                let updated_user_info = db.get_user(&id);
+                let updated_user_info = db.get_user(&id).await;
 
                 return match updated_user_info {
-                    Ok(user) => Ok(Json(user)),
-                    Err(_) => Err(Status::InternalServerError),
+                    Ok(user) => HttpResponse::Ok().json(user),
+                    Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
                 };
             } else {
-                return Err(Status::NotFound);
+                return HttpResponse::NotFound().body("No user found with specified ID");
             }
         }
-        Err(_) => Err(Status::InternalServerError),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
 }
 
-#[delete("/user/<path>")]
-pub fn delete_user(db: &State<MongoRepo>, path: String) -> Result<Json<&str>, Status> {
-    let id = path;
+#[delete("/user/{id}")]
+pub async fn delete_user(db: Data<MongoRepo>, path: Path<String>) -> HttpResponse {
+    let id = path.into_inner();
     if id.is_empty() {
-        return Err(Status::BadRequest);
+        return HttpResponse::BadRequest().body("invalid ID");
     };
-    let result = db.delete_user(&id);
+    let result = db.delete_user(&id).await;
 
     match result {
         Ok(res) => {
             if res.deleted_count == 1 {
-                return Ok(Json("Users successfully deleted!"));
+                return HttpResponse::Ok().json("User successfully deleted!");
             } else {
-                return Err(Status::NotFound);
+                return HttpResponse::NotFound().json("User with specified ID not found!");
             }
         }
-        Err(_) => Err(Status::InternalServerError),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
 }
 
 #[get("/users")]
-pub fn get_all_users(db: &State<MongoRepo>) -> Result<Json<Vec<Users>>, Status> {
-
-    // give the users collection and testimony database
-
-
-
-    let users = db.get_all_users();
+pub async fn get_all_users(db: Data<MongoRepo>) -> HttpResponse {
+    let users = db.get_all_users().await;
 
     match users {
-        Ok(users) => Ok(Json(users)),
-        Err(_) => Err(Status::InternalServerError),
+        Ok(users) => HttpResponse::Ok().json(users),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
 }
